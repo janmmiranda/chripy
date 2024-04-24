@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 )
 
 type DB struct {
@@ -14,9 +15,10 @@ type DB struct {
 }
 
 type DBStructure struct {
-	Chirps         map[int]Chirp  `json:"chirps"`
-	Users          map[int]User   `json:"users"`
-	EmailIDUserMap map[string]int `json:"emailIDUserMap`
+	Chirps               map[int]Chirp        `json:"chirps"`
+	Users                map[int]User         `json:"users"`
+	EmailIDUserMap       map[string]int       `json:"emailIDUserMap"`
+	RevokedRefreshTokens map[string]time.Time `json:"revokedRefreshTokens"`
 }
 
 type Chirp struct {
@@ -43,9 +45,10 @@ func NewDB(path string) (*DB, error) {
 
 func (db *DB) createDB() error {
 	dbStructure := DBStructure{
-		Chirps:         map[int]Chirp{},
-		Users:          map[int]User{},
-		EmailIDUserMap: map[string]int{},
+		Chirps:               map[int]Chirp{},
+		Users:                map[int]User{},
+		EmailIDUserMap:       map[string]int{},
+		RevokedRefreshTokens: map[string]time.Time{},
 	}
 	return db.writeDB(dbStructure)
 }
@@ -100,6 +103,28 @@ func (db *DB) UpdateUser(id int, email string, pwd string) (User, error) {
 	}
 
 	return user, nil
+}
+
+func (db *DB) RevokeRefreshToken(refreshToken string) error {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+	dbStructure.RevokedRefreshTokens[refreshToken] = time.Now().UTC()
+	err = db.writeDB(dbStructure)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (db *DB) CheckRefreshToken(refreshToken string) (bool, error) {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return false, err
+	}
+	_, ok := dbStructure.RevokedRefreshTokens[refreshToken]
+	return ok, nil
 }
 
 func (db *DB) FindUserByEmail(email string) (User, error) {

@@ -56,6 +56,9 @@ func main() {
 	mux.HandleFunc("POST /api/login", apiConfig.handlerUsersLogin)
 	mux.HandleFunc("PUT /api/users", apiConfig.handlerUsersUpdate)
 
+	mux.HandleFunc("POST /api/refresh", apiConfig.handlerRefreshToken)
+	mux.HandleFunc("POST /api/revoke", apiConfig.handlerRevokeToken)
+
 	corsMux := middlewareLog(middlewareCors(mux))
 
 	server := &http.Server{

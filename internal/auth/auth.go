@@ -25,11 +25,11 @@ func CheckPasswordHash(pwd, hash string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pwd))
 }
 
-func MakeJWT(userID int, tokenSecret string, expiresIn time.Duration) (string, error) {
+func MakeJWT(userID int, tokenSecret string, expiresIn time.Duration, issuer string) (string, error) {
 	signingKey := []byte(tokenSecret)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer:    "chirpy",
+		Issuer:    issuer,
 		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiresIn)),
 		Subject:   fmt.Sprintf("%d", userID),
@@ -37,7 +37,7 @@ func MakeJWT(userID int, tokenSecret string, expiresIn time.Duration) (string, e
 	return token.SignedString(signingKey)
 }
 
-func ValidateJWT(tokenString, tokenSecret string) (string, error) {
+func ValidateJWT(tokenString, tokenSecret string) (string, string, error) {
 	claimsStruct := jwt.RegisteredClaims{}
 	token, err := jwt.ParseWithClaims(
 		tokenString,
@@ -45,13 +45,18 @@ func ValidateJWT(tokenString, tokenSecret string) (string, error) {
 		func(token *jwt.Token) (interface{}, error) { return []byte(tokenSecret), nil },
 	)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	userIDString, err := token.Claims.GetSubject()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return userIDString, nil
+	tokenIssuer, err := token.Claims.GetIssuer()
+	if err != nil {
+		return "", "", err
+	}
+
+	return userIDString, tokenIssuer, nil
 }
 
 func GetBearerToken(headers http.Header) (string, error) {

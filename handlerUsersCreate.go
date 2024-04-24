@@ -9,6 +9,11 @@ import (
 	"github.com/janmmiranda/chripy/internal/auth"
 )
 
+const AccessIssuer = "chirpy-access"
+const RefreshIssuer = "chirpy-refresh"
+const AccessDuration = 60 * 60
+const RefreshDuration = 60 * 60 * 24 * 60
+
 type parameters struct {
 	Email    string `json:"email`
 	Password string `json:"password`
@@ -21,8 +26,10 @@ type userResponse struct {
 }
 
 type response struct {
-	User
-	Token string `json:"token"`
+	ID           int    `json:"id"`
+	Email        string `json:"email"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, req *http.Request) {
@@ -58,9 +65,13 @@ func (cfg *apiConfig) handlerUsersUpdate(w http.ResponseWriter, req *http.Reques
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	userIDString, err := auth.ValidateJWT(bearerToken, cfg.JWTSecret)
+	userIDString, issuer, err := auth.ValidateJWT(bearerToken, cfg.JWTSecret)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if issuer == RefreshIssuer {
+		respondWithError(w, http.StatusUnauthorized, "refresh token not accepted for updates")
 		return
 	}
 	params := parameters{}
@@ -88,10 +99,8 @@ func (cfg *apiConfig) handlerUsersUpdate(w http.ResponseWriter, req *http.Reques
 		return
 	}
 	respondWithJSON(w, http.StatusOK, response{
-		User: User{
-			ID:    user.ID,
-			Email: user.Email,
-		},
+		ID:    user.ID,
+		Email: user.Email,
 	})
 }
 
@@ -121,22 +130,82 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	defaultExpireTime := 60 * 60 * 24
-	if p.ExpiresInSeconds == 0 {
-		p.ExpiresInSeconds = defaultExpireTime
-	} else if p.ExpiresInSeconds > defaultExpireTime {
-		p.ExpiresInSeconds = defaultExpireTime
+	accessToken, err := auth.MakeJWT(user.ID, cfg.JWTSecret, time.Duration(AccessDuration)*time.Second, AccessIssuer)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
 	}
-	tokenStr, err := auth.MakeJWT(user.ID, cfg.JWTSecret, time.Duration(p.ExpiresInSeconds)*time.Second)
+	refreshToken, err := auth.MakeJWT(user.ID, cfg.JWTSecret, time.Duration(RefreshDuration)*time.Second, RefreshIssuer)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 	respondWithJSON(w, http.StatusOK, response{
-		User: User{
-			ID:    user.ID,
-			Email: user.Email,
-		},
+		ID:           user.ID,
+		Email:        user.Email,
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+	})
+}
+
+func (cfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, req *http.Request) {
+	bearerToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	userIDString, issuer, err := auth.ValidateJWT(bearerToken, cfg.JWTSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if issuer != RefreshIssuer {
+		respondWithError(w, http.StatusUnauthorized, "access token not accepted for refresh")
+		return
+	}
+	isRevoked, err := cfg.DB.CheckRefreshToken(bearerToken)
+	if err != nil || isRevoked {
+		respondWithError(w, http.StatusUnauthorized, "refresh token is revoked")
+		return
+	}
+	type response struct {
+		Token string `json:"token"`
+	}
+	userID, err := strconv.Atoi(userIDString)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	tokenStr, err := auth.MakeJWT(userID, cfg.JWTSecret, time.Hour, AccessIssuer)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondWithJSON(w, http.StatusOK, response{
 		Token: tokenStr,
 	})
+}
+
+func (cfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, req *http.Request) {
+	bearerToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	_, issuer, err := auth.ValidateJWT(bearerToken, cfg.JWTSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if issuer != RefreshIssuer {
+		respondWithError(w, http.StatusUnauthorized, "access token not accepted for refresh")
+		return
+	}
+	err = cfg.DB.RevokeRefreshToken(bearerToken)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, response{})
 }

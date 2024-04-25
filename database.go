@@ -22,8 +22,9 @@ type DBStructure struct {
 }
 
 type Chirp struct {
-	ID   int    `json:"id"`
-	Body string `json:"body"`
+	ID       int    `json:"id"`
+	Body     string `json:"body"`
+	AuthorId int    `json:"author_id"`
 }
 
 type User struct {
@@ -142,7 +143,7 @@ func (db *DB) FindUserByEmail(email string) (User, error) {
 }
 
 // CreateChirp creates a new chirp and saves it to disk
-func (db *DB) CreateChirp(body string) (Chirp, error) {
+func (db *DB) CreateChirp(body string, authorId int) (Chirp, error) {
 	dbStructure, err := db.loadDB()
 	if err != nil {
 		return Chirp{}, err
@@ -150,8 +151,9 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 
 	id := len(dbStructure.Chirps) + 1
 	chirp := Chirp{
-		ID:   id,
-		Body: body,
+		ID:       id,
+		Body:     body,
+		AuthorId: authorId,
 	}
 	dbStructure.Chirps[id] = chirp
 	err = db.writeDB(dbStructure)
@@ -182,10 +184,34 @@ func (db *DB) GetChirp(ID int) (Chirp, error) {
 	}
 
 	if chirp, ok := dbStructure.Chirps[ID]; ok {
+		fmt.Printf("Chirp %v found, author id: %v\n", ID, chirp.AuthorId)
 		return chirp, nil
 	}
 
 	return Chirp{}, errors.New(fmt.Sprintf("unable to find chirp id %v", ID))
+}
+
+func (db *DB) DeleteChirp(ID int, UserId int) (bool, error) {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return false, err
+	}
+
+	chirp, ok := dbStructure.Chirps[ID]
+	if !ok {
+		return false, errors.New(fmt.Sprintf("unable to find chirp id %v", ID))
+	}
+	if chirp.AuthorId != UserId {
+		return false, errors.New(fmt.Sprintf("unauthorized to perform task", ID))
+	}
+	delete(dbStructure.Chirps, ID)
+
+	err = db.writeDB(dbStructure)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // ensureDB creates a new database file if it doesn't exist

@@ -7,8 +7,27 @@ import (
 	"strconv"
 )
 
+const ASC = "asc"
+const DESC = "desc"
+
 func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, req *http.Request) {
-	dbChirps, err := cfg.DB.GetChirps()
+	authorIdStr := req.URL.Query().Get("author_id")
+	authorId := 0
+	var err error
+	if authorIdStr != "" {
+		authorId, err = strconv.Atoi(authorIdStr)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Couldn't convert authorId")
+			return
+		}
+	}
+
+	sortingOrder := req.URL.Query().Get("sort")
+	if sortingOrder == "" {
+		sortingOrder = ASC
+	}
+
+	dbChirps, err := cfg.DB.GetChirps(authorId)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve chirps")
 		return
@@ -22,9 +41,15 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, req *http.Request)
 		})
 	}
 
-	sort.Slice(chirps, func(i, j int) bool {
-		return chirps[i].ID < chirps[j].ID
-	})
+	if sortingOrder == DESC {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].ID > chirps[j].ID
+		})
+	} else {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].ID < chirps[j].ID
+		})
+	}
 
 	if len(chirps) == 1 {
 		respondWithJSON(w, http.StatusOK, chirps[0])

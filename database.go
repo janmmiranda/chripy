@@ -192,7 +192,11 @@ func (db *DB) CreateChirp(body string, authorId int) (Chirp, error) {
 	return chirp, nil
 }
 
-func (db *DB) GetChirps() ([]Chirp, error) {
+func (db *DB) GetChirps(authorIds ...int) ([]Chirp, error) {
+	authorId := 0
+	if len(authorIds) > 0 {
+		authorId = authorIds[0]
+	}
 	dbStructure, err := db.loadDB()
 	if err != nil {
 		return nil, err
@@ -200,8 +204,14 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 
 	chirps := make([]Chirp, 0, len(dbStructure.Chirps))
 	for _, chirp := range dbStructure.Chirps {
-		chirps = append(chirps, chirp)
+		if authorId == 0 {
+			chirps = append(chirps, chirp)
+		} else if authorId == chirp.AuthorId {
+			chirps = append(chirps, chirp)
+		}
+
 	}
+
 	return chirps, nil
 }
 

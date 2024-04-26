@@ -13,21 +13,17 @@ const AccessIssuer = "chirpy-access"
 const RefreshIssuer = "chirpy-refresh"
 const AccessDuration = 60 * 60
 const RefreshDuration = 60 * 60 * 24 * 60
+const BEARER = "Bearer"
 
 type parameters struct {
 	Email    string `json:"email`
 	Password string `json:"password`
 }
 
-type userResponse struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
-	Token string `json:"token"`
-}
-
 type response struct {
 	ID           int    `json:"id"`
 	Email        string `json:"email"`
+	IsChirpyRed  bool   `json:"is_chirpy_red"`
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
 }
@@ -52,15 +48,16 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, req *http.Reques
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create user")
 		return
 	}
-	respondWithJSON(w, http.StatusCreated, userResponse{
-		ID:    user.ID,
-		Email: user.Email,
+	respondWithJSON(w, http.StatusCreated, response{
+		ID:          user.ID,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 }
 
 func (cfg *apiConfig) handlerUsersUpdate(w http.ResponseWriter, req *http.Request) {
 	decoder := json.NewDecoder(req.Body)
-	bearerToken, err := auth.GetBearerToken(req.Header)
+	bearerToken, err := auth.GetBearerToken(req.Header, BEARER)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return
@@ -143,13 +140,14 @@ func (cfg *apiConfig) handlerUsersLogin(w http.ResponseWriter, req *http.Request
 	respondWithJSON(w, http.StatusOK, response{
 		ID:           user.ID,
 		Email:        user.Email,
+		IsChirpyRed:  user.IsChirpyRed,
 		Token:        accessToken,
 		RefreshToken: refreshToken,
 	})
 }
 
 func (cfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, req *http.Request) {
-	bearerToken, err := auth.GetBearerToken(req.Header)
+	bearerToken, err := auth.GetBearerToken(req.Header, BEARER)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return
@@ -187,7 +185,7 @@ func (cfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, req *http.Reque
 }
 
 func (cfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, req *http.Request) {
-	bearerToken, err := auth.GetBearerToken(req.Header)
+	bearerToken, err := auth.GetBearerToken(req.Header, BEARER)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return

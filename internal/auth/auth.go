@@ -59,13 +59,13 @@ func ValidateJWT(tokenString, tokenSecret string) (string, string, error) {
 	return userIDString, tokenIssuer, nil
 }
 
-func GetBearerToken(headers http.Header) (string, error) {
+func GetBearerToken(headers http.Header, tokenName string) (string, error) {
 	authHeader := headers.Get("Authorization")
 	if authHeader == "" {
 		return "", ErrNoAuthHeaderIncluded
 	}
 	splitAuth := strings.Split(authHeader, " ")
-	if len(splitAuth) < 2 || splitAuth[0] != "Bearer" {
+	if len(splitAuth) < 2 || splitAuth[0] != tokenName {
 		return "", errors.New("malformed authorization header")
 	}
 

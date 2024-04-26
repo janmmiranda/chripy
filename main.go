@@ -25,6 +25,7 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 	secretKey := os.Getenv("JWT_SECRET")
+	polkaKey := os.Getenv("POLKA_KEY")
 	dbg := flag.Bool("debug", false, "Enable debug mode")
 	flag.Parse()
 	if *dbg {
@@ -40,6 +41,7 @@ func main() {
 		fileServerHits: 0,
 		DB:             db,
 		JWTSecret:      secretKey,
+		PolkaKey:       polkaKey,
 	}
 
 	mux := http.NewServeMux()
@@ -59,6 +61,8 @@ func main() {
 
 	mux.HandleFunc("POST /api/refresh", apiConfig.handlerRefreshToken)
 	mux.HandleFunc("POST /api/revoke", apiConfig.handlerRevokeToken)
+
+	mux.HandleFunc("POST /api/polka/webhooks", apiConfig.handlerPolkaWebhooks)
 
 	corsMux := middlewareLog(middlewareCors(mux))
 

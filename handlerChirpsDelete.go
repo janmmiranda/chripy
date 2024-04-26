@@ -9,7 +9,7 @@ import (
 )
 
 func (cfg *apiConfig) handlerChirpsDelete(w http.ResponseWriter, req *http.Request) {
-	bearerToken, err := auth.GetBearerToken(req.Header)
+	bearerToken, err := auth.GetBearerToken(req.Header, APIKEY)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return

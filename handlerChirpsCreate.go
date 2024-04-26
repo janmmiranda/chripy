@@ -15,7 +15,7 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, req *http.Reque
 		Body string `json:"body`
 	}
 
-	bearerToken, err := auth.GetBearerToken(req.Header)
+	bearerToken, err := auth.GetBearerToken(req.Header, BEARER)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, err.Error())
 		return

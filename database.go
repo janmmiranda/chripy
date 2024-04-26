@@ -28,9 +28,10 @@ type Chirp struct {
 }
 
 type User struct {
-	ID       int    `json:"id"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	ID          int    `json:"id"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 // NewDB creates a new database connection
@@ -60,14 +61,15 @@ func (db *DB) CreateUser(email string, pwd string) (User, error) {
 		return User{}, err
 	}
 	if _, ok := dbStructure.EmailIDUserMap[email]; ok {
-		return User{}, errors.New(fmt.Sprintf("user with email %s already exists", email))
+		return User{}, fmt.Errorf("user with email %s already exists", email)
 	}
 
 	id := len(dbStructure.Users) + 1
 	user := User{
-		ID:       id,
-		Email:    email,
-		Password: string(pwd),
+		ID:          id,
+		Email:       email,
+		Password:    string(pwd),
+		IsChirpyRed: false,
 	}
 	dbStructure.Users[id] = user
 	dbStructure.EmailIDUserMap[email] = id
@@ -87,14 +89,15 @@ func (db *DB) UpdateUser(id int, email string, pwd string) (User, error) {
 
 	u, ok := dbStructure.Users[id]
 	if !ok {
-		return User{}, errors.New(fmt.Sprintf("user does not exists: %v", id))
+		return User{}, fmt.Errorf("user does not exists: %v", id)
 	}
 	oldEmail := u.Email
 	delete(dbStructure.EmailIDUserMap, oldEmail)
 	user := User{
-		ID:       id,
-		Email:    email,
-		Password: string(pwd),
+		ID:          id,
+		Email:       email,
+		Password:    string(pwd),
+		IsChirpyRed: u.IsChirpyRed,
 	}
 	dbStructure.Users[id] = user
 	dbStructure.EmailIDUserMap[email] = id
@@ -104,6 +107,31 @@ func (db *DB) UpdateUser(id int, email string, pwd string) (User, error) {
 	}
 
 	return user, nil
+}
+
+func (db *DB) UpgradeUser(id int) (bool, error) {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return false, err
+	}
+
+	u, ok := dbStructure.Users[id]
+	if !ok {
+		return false, fmt.Errorf("user does not exists: %v", id)
+	}
+	user := User{
+		ID:          id,
+		Email:       u.Email,
+		Password:    u.Password,
+		IsChirpyRed: true,
+	}
+	dbStructure.Users[id] = user
+	err = db.writeDB(dbStructure)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (db *DB) RevokeRefreshToken(refreshToken string) error {
